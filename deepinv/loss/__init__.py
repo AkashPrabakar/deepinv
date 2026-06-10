@@ -7,6 +7,7 @@ from .score import ScoreLoss
 from .tv import TVLoss
 from .r2r import R2RLoss
 from .sure import SureGaussianLoss, SurePoissonLoss, SurePGLoss
+from .cure import CURELoss, UNCURELoss
 from .regularisers import JacobianSpectralNorm, FNEJacobianSpectralNorm
 from .measplit import SplittingLoss, Neighbor2Neighbor
 from .loss import Loss, StackedPhysicsLoss
