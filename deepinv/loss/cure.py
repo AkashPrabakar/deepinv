@@ -147,7 +147,7 @@ class CURELoss(Loss):
         term2 = (-4.0 * self.sigma2) * v.reshape(B, -1).mean(dim=1)
 
         # term3: (8σ²/N) · vᵀ diag(J_f)  estimated via Hutchinson
-        term3 = self._hutchinson(model, y, v, B, N)
+        term3 = self._hutchinson(model, y, v, B, N, physics)
 
         return term1 + term2 + term3
 
@@ -158,15 +158,19 @@ class CURELoss(Loss):
         v: torch.Tensor,
         B: int,
         N: int,
+        physics: "Physics" = None,
     ) -> torch.Tensor:
         coeff1 = 8.0 * self.sigma2 / N
         coeff2 = 4.0 * self.sigma2 / N  # central diff: halved coefficient
+
+        def f(x):
+            return model(x, physics) if physics is not None else model(x)
 
         t3 = torch.zeros(B, device=y.device)
 
         if self.method == "auto":
             y_in = y.detach().requires_grad_(True)
-            fy = model(y_in)
+            fy = f(y_in)
             for _ in range(self.M):
                 b = self._rademacher(y.shape, y.device)
                 Jft_b = torch.autograd.grad(
@@ -175,18 +179,18 @@ class CURELoss(Loss):
                 t3 = t3 + coeff1 * ((v * b) * Jft_b).reshape(B, -1).sum(dim=1)
 
         elif self.method == "mc_1side":
-            fy = model(y)
+            fy = f(y)
             for _ in range(self.M):
                 b = self._rademacher(y.shape, y.device)
-                fyp = model(y + self.tau * b)
+                fyp = f(y + self.tau * b)
                 t3 = t3 + coeff1 * ((v * b) * (fyp - fy) / self.tau).reshape(B, -1).sum(dim=1)
 
         else:  # mc_2side
-            fy = model(y)
+            fy = f(y)
             for _ in range(self.M):
                 b = self._rademacher(y.shape, y.device)
-                fyp = model(y + self.tau * b)
-                fym = model(y - self.tau * b)
+                fyp = f(y + self.tau * b)
+                fym = f(y - self.tau * b)
                 t3 = t3 + coeff2 * ((v * b) * (fyp - fym) / self.tau).reshape(B, -1).sum(dim=1)
 
         return t3 / self.M
@@ -293,7 +297,7 @@ class UNCURELoss(Loss):
         term2 = -4.0 * (sigma2_map * v).reshape(B, -1).mean(dim=1)
 
         # term3: (8/N) · Σᵢ σᵢ² · vᵢ · [J_f]ᵢᵢ  via Hutchinson
-        term3 = self._hutchinson(model, y, v, sigma2_map, B, N)
+        term3 = self._hutchinson(model, y, v, sigma2_map, B, N, physics)
 
         return term1 + term2 + term3
 
@@ -305,6 +309,7 @@ class UNCURELoss(Loss):
         sigma2_map: torch.Tensor,
         B: int,
         N: int,
+        physics: "Physics" = None,
     ) -> torch.Tensor:
         # weight = σᵢ² · vᵢ  (replaces uniform σ² · v in CURELoss)
         sv = sigma2_map * v
@@ -312,11 +317,14 @@ class UNCURELoss(Loss):
         coeff1 = 8.0 / N
         coeff2 = 4.0 / N
 
+        def f(x):
+            return model(x, physics) if physics is not None else model(x)
+
         t3 = torch.zeros(B, device=y.device)
 
         if self.method == "auto":
             y_in = y.detach().requires_grad_(True)
-            fy = model(y_in)
+            fy = f(y_in)
             for _ in range(self.M):
                 b = self._rademacher(y.shape, y.device)
                 Jft_b = torch.autograd.grad(
@@ -325,18 +333,18 @@ class UNCURELoss(Loss):
                 t3 = t3 + coeff1 * ((sv * b) * Jft_b).reshape(B, -1).sum(dim=1)
 
         elif self.method == "mc_1side":
-            fy = model(y)
+            fy = f(y)
             for _ in range(self.M):
                 b = self._rademacher(y.shape, y.device)
-                fyp = model(y + self.tau * b)
+                fyp = f(y + self.tau * b)
                 t3 = t3 + coeff1 * ((sv * b) * (fyp - fy) / self.tau).reshape(B, -1).sum(dim=1)
 
         else:  # mc_2side
-            fy = model(y)
+            fy = f(y)
             for _ in range(self.M):
                 b = self._rademacher(y.shape, y.device)
-                fyp = model(y + self.tau * b)
-                fym = model(y - self.tau * b)
+                fyp = f(y + self.tau * b)
+                fym = f(y - self.tau * b)
                 t3 = t3 + coeff2 * ((sv * b) * (fyp - fym) / self.tau).reshape(B, -1).sum(dim=1)
 
         return t3 / self.M

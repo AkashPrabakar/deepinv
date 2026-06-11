@@ -45,6 +45,9 @@ torch.manual_seed(0)
 
 device = dinv.utils.get_device()
 
+# Non-blocking transfers cause NaN on MPS (pin_memory unsupported on Apple Silicon).
+non_blocking = device.type != "mps"
+
 # %%
 # Load base image datasets
 # ----------------------------------------------------------------------------------
@@ -188,6 +191,7 @@ trainer = dinv.Trainer(
     save_path=str(CKPT_DIR / operation),
     verbose=verbose,
     show_progress_bar=False,  # disable progress bar for better vis in sphinx gallery.
+    non_blocking_transfers=non_blocking,
 )
 
 # Train the network

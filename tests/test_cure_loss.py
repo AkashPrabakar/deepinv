@@ -30,13 +30,22 @@ def rician_squared(x: torch.Tensor, sigma: float) -> torch.Tensor:
 
 
 def make_model(seed: int = 0) -> nn.Module:
-    """Small fixed CNN for testing (SiLU, no batch norm)."""
+    """Small fixed CNN for testing — accepts (y, physics=None) matching deepinv model API."""
     torch.manual_seed(seed)
-    return nn.Sequential(
-        nn.Conv2d(1, 16, 3, padding=1), nn.SiLU(),
-        nn.Conv2d(16, 16, 3, padding=1), nn.SiLU(),
-        nn.Conv2d(16, 1, 3, padding=1),
-    )
+
+    class _CNN(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.net = nn.Sequential(
+                nn.Conv2d(1, 16, 3, padding=1), nn.SiLU(),
+                nn.Conv2d(16, 16, 3, padding=1), nn.SiLU(),
+                nn.Conv2d(16, 1, 3, padding=1),
+            )
+
+        def forward(self, y, physics=None):
+            return self.net(y)
+
+    return _CNN()
 
 
 # ── CURELoss unbiasedness tests ───────────────────────────────────────────────
